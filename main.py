@@ -811,6 +811,26 @@ def draw_stat_strip(cv):
         if i < len(STATS) - 1:
             cv.vline(x - 1, y0 + 2, y0 + 38, MUTED)
     cv.hline(MX0, MX1, 168, INK)
+    # FAIL LOUD (revise-2 guard): stat-strip caption ink must stay clear
+    # of the lead-scene panels below. Captions are drawn with SANSB8 at
+    # y0+22, line height 9, max 2 lines; a glyph's lowest ink row is
+    # line_top + dy + h (exclusive bottom). Measured today: worst ink
+    # ends at y=166, lead panels start at y=172. If the captions move
+    # down or the panels move up, fail here instead of shipping clipped
+    # captions (the revise-1 defect: the y=168 rule sliced line-2 ink).
+    panel_top = 172  # must match the y passed to draw_lead() in build()
+    ink_bottom = 0
+    for _num, cap in STATS:
+        lines = wrap("SANSB8", cap, cell_w - 8)
+        last_top = y0 + 22 + (len(lines) - 1) * 9
+        for ch in lines[-1]:
+            _adv, _dx, dy, w, h, _rows = glyph("SANSB8", ch)
+            if w and h:
+                ink_bottom = max(ink_bottom, last_top + dy + h)
+    assert ink_bottom < 168, \
+        "stat-strip caption ink reaches y=%d, rule at y=168" % ink_bottom
+    assert ink_bottom < panel_top, \
+        "stat-strip caption ink reaches y=%d, lead panels start y=%d" % (ink_bottom, panel_top)
 
 
 def draw_lead(cv, it, x, y, w, idx):
